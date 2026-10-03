@@ -1,0 +1,26 @@
+{
+  "framework": "flwr 1.38.0",
+  "nodes": 5,
+  "rounds": 30,
+  "alpha": 0.5,
+  "fault": {
+    "kind": "blur",
+    "node": 2,
+    "onset": 15,
+    "severity": 1.5,
+    "ramp": 10,
+    "seed": 0
+  },
+  "quarantine": true,
+  "threshold_cusum_healthy_max": 4.264178416674513,
+  "detected": true,
+  "first_flag_round": 22,
+  "rounds_after_onset": 7,
+  "falsely_flagged_nodes": [],
+  "payload_bytes_per_node_round": 1000,
+  "fingerprint_mismatches": 0,
+  "fleet_acc_tail_healthy": 0.90532,
+  "fleet_acc_tail_faulted": 0.9007400000000001,
+  "fleet_acc_tail_delta": -0.0045799999999999175,
+  "quarantined_from_round": 22
+}

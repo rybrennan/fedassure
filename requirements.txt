@@ -1,0 +1,20 @@
+# fedassure — federated aggregation integrity harness
+#
+# Deliberately minimal. This is a measurement instrument, not a deployment:
+# every dependency is a potential source of nondeterminism in a study whose
+# entire output is detection probability and false-alarm rate.
+#
+# Notably ABSENT: flwr / ray. Flower's simulation backend requires Ray, which
+# adds a heavy dependency and actor-based scheduling for zero measurement
+# benefit. FedAvg (McMahan et al., 2017) is implemented directly in
+# fedassure/fedavg.py so that seeding, client selection, and aggregation are
+# fully under our control and reproducible run-to-run.
+
+torch>=2.2
+torchvision>=0.17
+numpy>=1.26
+scipy>=1.11
+matplotlib>=3.8
+
+# dev
+pytest>=8.0

@@ -1,0 +1,324 @@
+"""FedAvg simulation loop.
+
+A direct implementation of McMahan et al. (2017): the server broadcasts a
+global model, each selected client trains locally for E epochs, and the server
+takes a sample-count-weighted average of the returned parameters.
+
+Runs in-process. There is no networking, no actor scheduling, and no framework
+between the loop and the numbers it produces — which is the point. The output
+of this harness is a detection probability and a false-alarm rate, and both are
+only as trustworthy as our ability to re-run a configuration and get the same
+answer.
+
+Everything a downstream integrity detector might want is recorded per client
+per round in `ClientUpdate`. Nothing here inspects, scores, or filters those
+updates: fault injection and detection are separate layers, added on top,
+so that the baseline can be established without them.
+"""
+
+from __future__ import annotations
+
+import copy
+import random
+import time
+from dataclasses import dataclass, field
+from typing import Callable, Iterable
+
+import numpy as np
+import torch
+from torch import nn
+
+from .config import FedConfig
+from .data import Dataset
+from .models import build_model, count_parameters
+
+StateDict = dict[str, torch.Tensor]
+ShardTransform = Callable[
+    [int, int, torch.Tensor, torch.Tensor], tuple[torch.Tensor, torch.Tensor]
+]
+
+
+# ── determinism ───────────────────────────────────────────────────────────────
+
+
+def seed_everything(seed: int) -> None:
+    random.seed(seed)
+    np.random.seed(seed % (2**32))
+    torch.manual_seed(seed)
+
+
+def _derive_seed(*parts: int) -> int:
+    """Stable seed from a tuple of ints, e.g. (train_seed, round, client).
+
+    Deriving per-client seeds this way means a client trains identically
+    regardless of how many other clients ran before it in the loop, so results
+    do not depend on iteration order.
+    """
+    h = 0
+    for p in parts:
+        h = (h * 1_000_003 + int(p)) % (2**31 - 1)
+    return h
+
+
+# ── records ───────────────────────────────────────────────────────────────────
+
+
+@dataclass
+class ClientUpdate:
+    """One client's contribution in one round."""
+
+    client_id: int
+    round_idx: int
+    n_samples: int
+    train_loss: float
+    state: StateDict = field(repr=False)
+
+
+@dataclass
+class RoundRecord:
+    round_idx: int
+    participants: list[int]
+    test_loss: float
+    test_acc: float
+    mean_train_loss: float
+    seconds: float
+
+    def to_dict(self) -> dict:
+        return {
+            "round": self.round_idx,
+            "participants": self.participants,
+            "test_loss": self.test_loss,
+            "test_acc": self.test_acc,
+            "mean_train_loss": self.mean_train_loss,
+            "seconds": self.seconds,
+        }
+
+
+@dataclass
+class FedResult:
+    config: FedConfig
+    rounds: list[RoundRecord]
+    n_parameters: int
+    partition_summary: dict
+    final_state: StateDict = field(repr=False)
+
+    @property
+    def final_acc(self) -> float:
+        return self.rounds[-1].test_acc
+
+    def accuracy_curve(self) -> list[float]:
+        return [r.test_acc for r in self.rounds]
+
+    def to_dict(self) -> dict:
+        return {
+            "config": self.config.to_dict(),
+            "fingerprint": self.config.fingerprint(),
+            "n_parameters": self.n_parameters,
+            "partition_summary": self.partition_summary,
+            "rounds": [r.to_dict() for r in self.rounds],
+            "final_acc": self.final_acc,
+        }
+
+
+# ── local training ────────────────────────────────────────────────────────────
+
+
+def local_train(
+    model: nn.Module,
+    x: torch.Tensor,
+    y: torch.Tensor,
+    cfg: FedConfig,
+    seed: int,
+) -> tuple[StateDict, float]:
+    """Train `model` in place on one client's shard. Returns (state, mean loss).
+
+    Batching is done by hand from a seeded permutation rather than through a
+    DataLoader so that batch composition is a pure function of `seed`.
+    """
+    model.train()
+    optimiser = torch.optim.SGD(model.parameters(), lr=cfg.lr, momentum=cfg.momentum)
+    criterion = nn.CrossEntropyLoss()
+    generator = torch.Generator().manual_seed(seed)
+
+    n = x.shape[0]
+    total_loss, n_batches = 0.0, 0
+
+    for _ in range(cfg.local_epochs):
+        order = torch.randperm(n, generator=generator)
+        for start in range(0, n, cfg.batch_size):
+            idx = order[start : start + cfg.batch_size]
+            if idx.numel() == 0:
+                continue
+            optimiser.zero_grad(set_to_none=True)
+            loss = criterion(model(x[idx]), y[idx])
+            loss.backward()
+            optimiser.step()
+            total_loss += float(loss.detach())
+            n_batches += 1
+
+    return (
+        {k: v.detach().clone() for k, v in model.state_dict().items()},
+        total_loss / max(n_batches, 1),
+    )
+
+
+# ── aggregation ───────────────────────────────────────────────────────────────
+
+
+def aggregate(updates: Iterable[ClientUpdate]) -> StateDict:
+    """Sample-count-weighted parameter average (the FedAvg server step)."""
+    updates = list(updates)
+    if not updates:
+        raise ValueError("no client updates to aggregate")
+
+    total = sum(u.n_samples for u in updates)
+    if total <= 0:
+        raise ValueError("client sample counts sum to zero")
+
+    out: StateDict = {}
+    for key, ref in updates[0].state.items():
+        if not torch.is_floating_point(ref):
+            # Integer buffers (none in SmallCNN, but guard the general case):
+            # averaging them is meaningless, so carry the first client's value.
+            out[key] = ref.clone()
+            continue
+        acc = torch.zeros_like(ref, dtype=torch.float64)
+        for u in updates:
+            acc += u.state[key].to(torch.float64) * (u.n_samples / total)
+        out[key] = acc.to(ref.dtype)
+    return out
+
+
+# ── evaluation ────────────────────────────────────────────────────────────────
+
+
+@torch.no_grad()
+def evaluate(
+    model: nn.Module, x: torch.Tensor, y: torch.Tensor, batch_size: int = 512
+) -> tuple[float, float]:
+    """Returns (mean loss, accuracy)."""
+    model.eval()
+    criterion = nn.CrossEntropyLoss(reduction="sum")
+    total_loss, correct = 0.0, 0
+    for start in range(0, x.shape[0], batch_size):
+        xb, yb = x[start : start + batch_size], y[start : start + batch_size]
+        logits = model(xb)
+        total_loss += float(criterion(logits, yb))
+        correct += int((logits.argmax(dim=1) == yb).sum())
+    n = x.shape[0]
+    return total_loss / n, correct / n
+
+
+# ── the loop ──────────────────────────────────────────────────────────────────
+
+
+def run_federated(
+    cfg: FedConfig,
+    dataset: Dataset,
+    parts: list[np.ndarray],
+    partition_summary: dict | None = None,
+    on_round: Callable[[RoundRecord], None] | None = None,
+    update_hook: Callable[[list[ClientUpdate], int], None] | None = None,
+    fault: ShardTransform | None = None,
+    participation: Callable[[int], list[int]] | None = None,
+) -> FedResult:
+    """Run a full federation and return the per-round history.
+
+    `update_hook` receives every client's update before aggregation each round.
+    It is the seam the integrity layer attaches to; the baseline passes nothing
+    and the loop behaves identically with or without it.
+
+    `fault` is the second seam: called as fault(client_id, round_idx, x, y) on
+    each client's shard before local training, returning the (x, y) the client
+    actually trains on. It is how fault injection reaches a node's feed without
+    the federation code knowing anything about faults. None means every client
+    trains on its true shard, and a fault that returns its inputs untouched is
+    bitwise indistinguishable from None.
+
+    `participation` is the third seam: called as participation(round_idx) and
+    returning the client ids that report this round. It is how a contact
+    schedule (submarines surfacing every k rounds) reaches the loop. None
+    means every client (or the `client_fraction` sample). A schedule that
+    returns every client every round is bitwise indistinguishable from None.
+    """
+    if len(parts) != cfg.n_clients:
+        raise ValueError(f"got {len(parts)} partitions for {cfg.n_clients} clients")
+
+    seed_everything(cfg.init_seed)
+    model = build_model("small_cnn", dataset.n_classes, cfg.init_seed, cfg.device)
+    global_state = {k: v.detach().clone() for k, v in model.state_dict().items()}
+    n_params = count_parameters(model)
+
+    # Pre-slice each client's shard once rather than indexing every round.
+    shards = [
+        (dataset.train_x[idx].to(cfg.device), dataset.train_y[idx].to(cfg.device))
+        for idx in parts
+    ]
+    test_x = dataset.test_x.to(cfg.device)
+    test_y = dataset.test_y.to(cfg.device)
+
+    selection_rng = np.random.default_rng([cfg.train_seed, 0xC11E])
+    history: list[RoundRecord] = []
+
+    for rnd in range(cfg.rounds):
+        started = time.perf_counter()
+
+        if participation is not None:
+            participants = sorted(set(int(c) for c in participation(rnd)))
+            if not participants or participants[0] < 0 or participants[-1] >= cfg.n_clients:
+                raise ValueError(f"participation returned {participants} for {cfg.n_clients} clients")
+        elif cfg.clients_per_round >= cfg.n_clients:
+            participants = list(range(cfg.n_clients))
+        else:
+            participants = sorted(
+                selection_rng.choice(
+                    cfg.n_clients, size=cfg.clients_per_round, replace=False
+                ).tolist()
+            )
+
+        updates: list[ClientUpdate] = []
+        for cid in participants:
+            x, y = shards[cid]
+            if fault is not None:
+                x, y = fault(cid, rnd, x, y)
+            local = copy.deepcopy(model)
+            local.load_state_dict(global_state)
+            state, loss = local_train(
+                local, x, y, cfg, seed=_derive_seed(cfg.train_seed, rnd, cid)
+            )
+            updates.append(
+                ClientUpdate(
+                    client_id=cid,
+                    round_idx=rnd,
+                    n_samples=int(x.shape[0]),
+                    train_loss=loss,
+                    state=state,
+                )
+            )
+
+        if update_hook is not None:
+            update_hook(updates, rnd)
+
+        global_state = aggregate(updates)
+        model.load_state_dict(global_state)
+        test_loss, test_acc = evaluate(model, test_x, test_y, cfg.eval_batch_size)
+
+        record = RoundRecord(
+            round_idx=rnd,
+            participants=participants,
+            test_loss=test_loss,
+            test_acc=test_acc,
+            mean_train_loss=float(np.mean([u.train_loss for u in updates])),
+            seconds=time.perf_counter() - started,
+        )
+        history.append(record)
+        if on_round is not None:
+            on_round(record)
+
+    return FedResult(
+        config=cfg,
+        rounds=history,
+        n_parameters=n_params,
+        partition_summary=partition_summary or {},
+        final_state=global_state,
+    )
