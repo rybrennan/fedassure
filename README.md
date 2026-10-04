@@ -18,6 +18,10 @@ confidently.
 This repository measures how well that condition can be detected, and states honestly where it
 cannot be.
 
+![One slow drift, two views. Top: fleet test accuracy with and without a drifting node, indistinguishable. Bottom: the drifting node's own cumulative divergence crosses the healthy ceiling five rounds after onset.](figures/drift_trace.png)
+
+*One slow drift, one node, one seed. Top: what the operator watches. The fleet accuracy with node 2 drifting from round 15 is indistinguishable from the healthy fleet. Bottom: what the instrument watches. The drifting node's cumulative divergence from its own baseline crosses the healthy ceiling five rounds after onset. The grid below turns this single trace into detection probabilities.*
+
 ## For evaluators — two minutes
 
 **What it is.** A measurement harness, not a product: it simulates a federation of ten nodes,
@@ -47,9 +51,47 @@ from seeds, runs on a laptop CPU, ships as a container (`Dockerfile`).
 `scripts/score_faults.py` and `scripts/make_figures.py` regenerate every table and figure from
 the tracked `results/*.json`. Tests: `python -m pytest -q` (no data download needed).
 
-**Progression.** Tagged releases `v0.1.0`–`v0.4.0` mark the four build stages; `CHANGELOG.md`
-says what each claimed. Design decisions and the alternatives rejected are in `docs/`.
-Provenance of every dataset and method is in `CITATION.md`. Licence: MIT.
+**Progression.** The build ran in five stages; `CHANGELOG.md` says what each one claimed.
+This public repository is a single squashed release (`v0.6.0`); the per-stage tags and the
+commit history are kept in a private working repository. Design decisions and the alternatives
+rejected are in `docs/`. Provenance of every dataset and method is in `CITATION.md`. Licence: MIT.
+
+## The evidence in five figures
+
+Each figure is generated from the tracked `results/*.json` by `scripts/make_figures.py`, and every
+number in it is read from a result file. Three seeds per setting, so a 3-of-3 reads as the
+interval [0.44, 1.00]; the bars below are 95% Wilson intervals.
+
+**1. Detection against heterogeneity, clothing photographs.** Label corruption is localised at
+every level. Slow blur is caught at every level by the cumulative statistic (CUSUM), and slow
+bias under moderate skew; under severe skew bias is missed. Gain drift is the failure case:
+detection falls to zero under severe skew.
+
+![Detection probability against heterogeneity, per fault kind, clothing photographs](figures/pd_by_alpha.png)
+
+**2. The same instrument on real underwater recordings (DeepShip, four vessel classes).** The
+ordering by heterogeneity carries over through the cumulative statistic. Persistence does not
+transfer. Gain is caught here where it failed on images. Under severe skew nothing is caught.
+
+![Detection probability against heterogeneity, DeepShip underwater acoustics](figures/pd_by_alpha_acoustic.png)
+
+**3. Why no fixed threshold can work.** With no fault present, healthy cross-node divergence
+spans about twenty times across heterogeneity levels. Thresholds are therefore set against a
+locally measured noise floor, and false alarms are counted on healthy runs the threshold never saw.
+
+![Healthy cross-node divergence at three heterogeneity levels, no fault present](figures/confound.png)
+
+**4. Sensitivity is bought with alarm rate.** Each statistic at four thresholds, from the healthy
+maximum down to the 90th percentile; detection is over the top severity of every fault kind and
+the alarm rate is counted on held-out healthy seeds.
+
+![Detection probability against held-out false-alarm rate, three heterogeneity levels](figures/operating_curve.png)
+
+**5. How big the probe payload needs to be.** The healthy temporal floor barely moves from 200
+bytes to 10 kB per node per round, because the floor is the model moving between rounds, not
+the battery being small. The knee is at about 1 kB, 0.12% of the model update.
+
+![Healthy temporal floor against probe payload size](figures/bandwidth.png)
 
 ## Scope
 
@@ -640,7 +682,8 @@ class from healthy seed 0 with false alarms counted on held-out seeds; a 99-run 
 into detection probability with Wilson intervals and a chance floor; a threshold sweep per
 statistic per alpha; two-sided CUSUM judged and limited; a second modality (DeepShip
 underwater acoustics) through the unchanged harness, with its own 99-run grid; the node
-confound resolved with 72 more runs. 90 tests passing.
+confound resolved with 72 more runs. 96 tests pass with `flwr` installed; the six Flower
+integration tests are skipped without it.
 
 The detection claims are in the stage-4 section with their intervals. They are three-seed
 claims; the limits section above says exactly what that means.

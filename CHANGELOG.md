@@ -1,6 +1,16 @@
 # Changelog
 
-Stages are tagged. Every tag's README states what that stage claimed and what it did not.
+Stages were tagged in the private working repository. This public repository is a single squashed release (`v0.6.0`); each entry below states what that stage claimed and what it did not.
+
+## v0.6.0 — 2026-09-23 — the layer as a Flower strategy
+- `fedassure.integrations.flower.IntegrityFedAvg`, a Flower `FedAvg` subclass: nodes return
+  probe scores (float16, about 1 kB) in the fit-result metrics; the strategy runs the same
+  `level_series` and `cusum` functions as the harness and can quarantine flagged nodes.
+- `scripts/flower_demo.py`: five client processes over gRPC. One slow drift, flagged on the right
+  node seven rounds after onset, no healthy node flagged, 1,000 bytes per node per round. One run
+  per condition: a demonstration, not a detection rate.
+- Six integration tests, including one that pins the known limit (drift toward the fleet is not
+  flagged by the one-sided statistic). 96 tests in total.
 
 ## v0.5.0 — 2026-09-09 — acoustic grid scored; node confound resolved; submission hygiene
 - DeepShip grid (99 runs): the ordering by heterogeneity transfers; CUSUM transfers,
