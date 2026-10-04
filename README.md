@@ -3,7 +3,7 @@
 **A measurement harness for federated aggregation integrity.**
 
 In a federated learning system, each node trains locally on its own sensor feeds and returns a
-model update for aggregation. Detecting gross faults at a node — dropout, obvious corruption — is
+model update for aggregation. Detecting gross faults at a node (dropout, obvious corruption) is
 local filtering, and it is largely solved. The failure that survives local filtering is *plausible*
 bad data: a sensor drifting slowly inside nominal bounds, a feed that is internally consistent but
 miscalibrated. Nothing at that node looks broken. It trains, returns a statistically well-formed
@@ -11,7 +11,7 @@ update, and the aggregator has no basis on which to reject it.
 
 That contribution enters the global model, and **the aggregate metric hides it**. Fleet-wide
 performance is dominated by healthy nodes, degradation from one drifting platform is gradual, and
-nothing in the reported global figure indicates which node is responsible — or that any node is.
+nothing in the reported global figure indicates which node is responsible, or that any node is.
 The system reports a number that no longer estimates what the model will do, and reports it
 confidently.
 
@@ -22,12 +22,12 @@ cannot be.
 
 *One slow drift, one node, one seed. Top: what the operator watches. The fleet accuracy with node 2 drifting from round 15 is indistinguishable from the healthy fleet. Bottom: what the instrument watches. The drifting node's cumulative divergence from its own baseline crosses the healthy ceiling five rounds after onset. The grid below turns this single trace into detection probabilities.*
 
-## For evaluators — two minutes
+## For evaluators: two minutes
 
 **What it is.** A measurement harness, not a product: it simulates a federation of ten nodes,
 gives every node a fixed probe battery, injects a known fault into one node's feed, and reports
 whether and when the divergence statistics flag it, with false alarms counted on healthy runs
-the thresholds never saw. Pure PyTorch, no federated-learning framework, bitwise reproducible
+the thresholds never saw. The harness itself is pure PyTorch with no federated-learning framework (the Flower strategy is a separate, optional module), bitwise reproducible
 from seeds, runs on a laptop CPU, ships as a container (`Dockerfile`).
 
 **What it shows so far** (details, intervals and limits in the stage sections below):
@@ -143,8 +143,9 @@ interpretable unless a configuration re-runs identically, so seeding, client sel
 aggregation are kept fully under local control. `test_run_is_reproducible_from_seeds` asserts
 bitwise-identical parameters across repeated runs, and it is the load-bearing test in the suite.
 
-The detector is framework-agnostic by construction, so Flower can be swapped in later if a
-deployment demonstration ever calls for it.
+The detector is framework-agnostic by construction. Stage 6 wraps the same detector functions as a
+Flower strategy, in a live five-process federation, without touching the harness; see "Integration:
+the layer inside Flower".
 
 ## Reproducibility
 
@@ -166,7 +167,7 @@ that names its result file, so a run cannot silently overwrite a different run.
 **Legitimate non-IID skew is exactly what a naive integrity detector mistakes for corruption.**
 
 Under a Dirichlet partition (Hsu, Qi & Brown, 2019), a low concentration `alpha` concentrates each
-class on few clients. Those clients' models then genuinely disagree with their peers — with no
+class on few clients. Those clients' models then genuinely disagree with their peers, with no
 fault present at all. Characterising the detector across `alpha` is therefore not a robustness
 afterthought; it is the experiment. A detector that cannot separate *this node has different data*
 from *this node has corrupted data* has measured nothing.
@@ -196,7 +197,7 @@ near-IID federation containing a real fault would be.
 So a single fixed detection threshold cannot work across the heterogeneity range. Calibrated on
 near-IID data it will fire continuously under severe skew; calibrated for severe skew it will miss
 faults in homogeneous fleets. **Any threshold must be set against the locally measured noise floor,
-not against an absolute constant** — and the false-alarm rate has to be reported per `alpha`, never
+not against an absolute constant**, and the false-alarm rate has to be reported per `alpha`, never
 as a single number.
 
 This is the central confound, quantified before a detector exists. It is exactly what establishing
@@ -210,7 +211,7 @@ Stage 2 adds the instrument. Design choices and rejected alternatives are record
 - **Battery.** 500 images drawn once from the held-out test split, stratified by class and
   ordered round-robin, seeded by `probe_seed`. No node trains on them. Round-robin ordering
   means every prefix of length 10·k is itself an exactly stratified battery, so one run yields
-  the statistics at every smaller battery size from the same reports — the bandwidth curve is
+  the statistics at every smaller battery size from the same reports; the bandwidth curve is
   measured, not re-run.
 - **Scoring.** Each node scores the battery with its *post-local-training* state, the same
   state it returns for aggregation. `ProbeMonitor` attaches to the `update_hook` seam and
@@ -261,8 +262,8 @@ Three things follow, and the third was not predicted:
 1. **Typical cross-node divergence in a healthy federation spans 20x across the heterogeneity
    range** (0.010 to 0.206 nats). Legitimate skew *is* the level signal. Any threshold on the
    raw level is a threshold on alpha.
-2. **The across-client spread spans 13x.** Under skew it is flat in battery size — it is real
-   heterogeneity, not sampling — and only at near-IID does it fall with more probes.
+2. **The across-client spread spans 13x.** Under skew it is flat in battery size (it is real
+   heterogeneity, not sampling) and only at near-IID does it fall with more probes.
 3. **Within-round robust z is not transferable across alpha either, and it inverts.** The
    healthy maximum |z| is *largest* near-IID (6.7) and smallest under severe skew (2.0),
    because the within-round MAD over ten nodes shrinks to 0.003 near-IID and a node sitting
@@ -381,8 +382,8 @@ at moderate skew. Per-alpha thresholds are not a convenience; they are the opera
 ### Stage 4: the grid
 
 99 runs (`scripts/run_grid.py`, 10.0 h on the M4 Pro): three alphas × three train seeds, each
-with a healthy run and ten faults on node 2 — label noise 0.1/0.3/0.5, blur 0.5/1.0/1.5 px,
-gain 0.25/0.5/1.0, bias 0.5 — all ramped over ten rounds from round 15. Thresholds from seed 0
+with a healthy run and ten faults on node 2 (label noise 0.1/0.3/0.5, blur 0.5/1.0/1.5 px,
+gain 0.25/0.5/1.0, bias 0.5), all ramped over ten rounds from round 15. Thresholds from seed 0
 per alpha; false-alarm rate on seeds 1 and 2; detection probability as the fraction of the
 three seeds detected, with a Wilson 95% interval. Every number below is in the output of
 `scripts/score_faults.py`; the tables here are the summary.
@@ -483,7 +484,7 @@ severe-skew column is the honest ceiling of this instrument at thirty rounds and
 Every number above is on clothing photographs. **DeepShip** (Irfan et al., 2021) is real
 hydrophone recordings of ships in the Strait of Georgia, four vessel classes; the public
 portion (63 recordings, about ninety minutes) is turned into 28×28 log-mel images and fed to
-the **unchanged** harness — same model, battery, faults, statistics, scorer. Design record and
+the **unchanged** harness: same model, battery, faults, statistics, scorer. Design record and
 the reasons for every choice, including why a synthetic sonar set was rejected:
 [`docs/stage5_acoustic_design.md`](docs/stage5_acoustic_design.md).
 
@@ -506,7 +507,7 @@ one-sided CUSUM, with the chance floor from the held-out false-alarm rate:
 Three things transfer and two do not:
 
 - **The ordering by heterogeneity transfers.** Everything at near-IID with a 4% chance floor,
-  most things at moderate skew, nothing at severe skew — the stage-4 shape on a second, harder,
+  most things at moderate skew, nothing at severe skew, the stage-4 shape on a second, harder,
   more relevant input. The moderate-skew catches are late (10–12 rounds) and sit against a 23%
   chance floor, because the acoustic healthy runs alarm more (1.8% of node-rounds); they are
   above chance with three seeds, not far above.
@@ -562,7 +563,7 @@ still localises it on a boat that reports one round in three.
 calibrated per platform class, and CUSUM's reference spread is pooled within a class whenever
 any node in it has fewer than five reference contacts (a well-sampled class keeps per-node
 spreads, so every every-round result above is unchanged to the last digit). With those in
-place the boat's own-history statistics do flag both submarine faults — but the submarine
+place the boat's own-history statistics do flag both submarine faults, but the submarine
 thresholds are maxima over **3 to 20 healthy values** (three boats, a 30-round run), against
 105–150 for ships, and a ceiling taken over fifteen numbers is not a ceiling. The scorer
 prints that count next to every threshold. The honest statement is: the structure is right,

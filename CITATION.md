@@ -8,15 +8,15 @@ https://github.com/rybrennan/fedassure. MIT licence (see `LICENSE`).
 ## Methods this builds on
 
 - McMahan, B., Moore, E., Ramage, D., Hampson, S., Arcas, B. A. y. (2017). Communication-efficient
-  learning of deep networks from decentralized data. *AISTATS*. — FedAvg, implemented directly in
+  learning of deep networks from decentralized data. *AISTATS*. Used for FedAvg, implemented directly in
   `fedassure/fedavg.py`.
 - Hsu, T.-M. H., Qi, H., Brown, M. (2019). Measuring the effects of non-identical data distribution
-  for federated visual classification. arXiv:1909.06335. — Dirichlet non-IID partitioning.
-- Page, E. S. (1954). Continuous inspection schemes. *Biometrika* 41(1–2). — CUSUM.
+  for federated visual classification. arXiv:1909.06335. Used for Dirichlet non-IID partitioning.
+- Page, E. S. (1954). Continuous inspection schemes. *Biometrika* 41(1–2). Used for CUSUM.
 - Lin, J. (1991). Divergence measures based on the Shannon entropy. *IEEE Trans. Inf. Theory* 37(1).
-  — Jensen–Shannon divergence.
+  Used for Jensen–Shannon divergence.
 - Wilson, E. B. (1927). Probable inference, the law of succession, and statistical inference.
-  *JASA* 22(158). — the interval on detection probability.
+  *JASA* 22(158). Used for the interval on detection probability.
 
 ## Datasets
 

@@ -1,4 +1,4 @@
-# Stage 2 design record — probe battery and divergence
+# Stage 2 design record: probe battery and divergence
 
 Decision record for `fedassure/probes.py` and `fedassure/detect.py`. The README carries the
 current state and results; this file carries the *choices* and the alternatives that were
@@ -16,7 +16,7 @@ class-probability rows. Nothing else crosses the interface.
 | Choice | Decision | Rejected alternative and why |
 |---|---|---|
 | Source split | Held-out **test** split | Train split: whichever node holds a probe image in its shard would score it differently for a legitimate reason (it trained on it), confounding the cross-node comparison. |
-| Selection | Stratified random, equal per class, seeded by `probe_seed` | Boundary / high-entropy selection is more sensitive to model change, but it is *also* more sensitive to legitimate heterogeneity — exactly the confound. Deferred until faults exist to measure it against. |
+| Selection | Stratified random, equal per class, seeded by `probe_seed` | Boundary / high-entropy selection is more sensitive to model change, but it is *also* more sensitive to legitimate heterogeneity, which is exactly the confound. Deferred until faults exist to measure it against. |
 | Ordering | **Round-robin by class** (probe *i* has class *i mod C*) | Plain shuffle. Round-robin makes every prefix of length *kC* an exactly stratified sub-battery, so one run over a 500-probe battery yields the statistic at every smaller size from the same reports. That is how the bandwidth curve is measured rather than asserted. |
 | Labels | Kept server-side only; never sent | Nodes return probabilities, not correctness. Labels are for server diagnostics. |
 | Probe images and the evaluation test set | Overlap allowed | Probes are never trained on, so no leakage into the model; the detector trains nothing, so no leakage into detection. Carving them out would shift the baseline accuracy numbers for no gain. |
@@ -71,7 +71,7 @@ carries its own checks, separate from the divergence statistics:
 
 - battery fingerprint echoed in each report must equal the served battery;
 - report shape must be (n_probes, n_classes), every value finite, every row summing to 1;
-- a report bitwise identical to the same node's previous report is a replay — a model that
+- a report bitwise identical to the same node's previous report is a replay: a model that
   trained this round cannot return the same softmax rows;
 - scorer determinism: scoring the same state twice must be bitwise equal (a hazard on
   non-deterministic backends; the harness runs CPU).
@@ -84,8 +84,8 @@ Return payload = `n_probes × n_classes × bytes_per_scalar`, independent of mod
 local data volume. Battery size trades sensitivity for bytes. The characterisation splits the
 healthy spread of the level statistic into two parts that behave differently with battery size:
 
-- **across rounds within a node** — sampling and training noise, expected to fall as ~1/√n;
-- **across nodes within a round** — real heterogeneity plus sampling noise, expected to
+- **across rounds within a node**: sampling and training noise, expected to fall as ~1/√n;
+- **across nodes within a round**: real heterogeneity plus sampling noise, expected to
   *plateau* at the heterogeneity floor.
 
 The knee where the across-round spread stops falling is the point beyond which more probes
@@ -101,7 +101,7 @@ battery size. Detection sensitivity is stage 4's to measure, against stage 3's f
 
 ## 7. Runtime priced before launch
 
-Scoring cost per round is `n_clients` forward passes over `n_probes` images — for 10 clients
+Scoring cost per round is `n_clients` forward passes over `n_probes` images; for 10 clients
 and 500 probes, about 5,000 28×28 inferences, negligible against local training. The healthy
 characterisation reuses the three stage-1 arms (alpha 0.1 / 0.5 / 100), 30 rounds each,
 one train seed: **three runs, ~20 minutes total** on the M4 Pro. No new grid dimension.

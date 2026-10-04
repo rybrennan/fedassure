@@ -1,4 +1,4 @@
-# Stage 3 design record — fault injection and the first operating measurements
+# Stage 3 design record: fault injection and the first operating measurements
 
 Decision record for `fedassure/faults.py`, `fedassure/metrics.py`, and the statistics added
 to `detect.py` during stage 3. The README carries current results; this file carries the
@@ -37,13 +37,13 @@ and that change against the node's own history is the discriminator. Two statist
 after fault runs, each an application of that principle to the level, and each with its
 threshold still taken from healthy runs only:
 
-- **Self-referenced level** (own-history z over a 5-round window) — after the 0.5σ bias
+- **Self-referenced level** (own-history z over a 5-round window), after the 0.5σ bias
   *ramp* doubled the node's level while its within-round z *fell*, because the fleet
   threshold is set by the most-skewed healthy node and the drift moved the target toward
   the fleet median. Catches steps at onset; misses ramps, whose per-round increment sits
   inside the node's own noise.
 - **CUSUM** (Page 1954, allowance 0.5 SD, reference epoch rounds 5–14 fixed for every node
-  and run) — after the step/ramp asymmetry above. Catches the ramp at 30% of final severity.
+  and run), after the step/ramp asymmetry above. Catches the ramp at 30% of final severity.
 
 A third was considered and rejected: tuning the CUSUM allowance or reference epoch to the
 runs. The allowance is the textbook default and the reference epoch is the settled part of
@@ -53,7 +53,7 @@ the burn-in, chosen once.
 
 The healthy CUSUM ceiling is 0.7 / 1.1 / 19.7 at alpha 0.1 / 0.5 / 100. Near-IID the
 reference-epoch SD is tiny (0.003 nats) and one healthy node's level rose 0.004 nats over
-fifteen rounds — a 36% climb in a fleet where everyone agrees, accumulated as 1.4 SD per
+fifteen rounds, a 36% climb in a fleet where everyone agrees, accumulated as 1.4 SD per
 round. That is a healthy node legitimately wandering. The consequence is the stage-1 rule on
 a new statistic: the threshold must be per alpha, and a fault near-IID has to beat 19.7 where
 under skew it has to beat 1.1. Whether it does is measured, not asserted.
@@ -68,11 +68,11 @@ counted there, per alpha, per statistic (`scripts/score_faults.py`).
 ## 6. Grid priced
 
 Every run is 6.5 minutes. Today's set: three healthy arms, five fault runs at alpha 0.5,
-four held-out healthy seeds, two fault runs at the other alphas, two more fault kinds —
+four held-out healthy seeds, two fault runs at the other alphas, two more fault kinds:
 sixteen runs, under two hours, all on one laptop core set, queued sequentially so the
 thread count stays identical to the stage-1 baseline (bitwise comparison requires it).
 
-## 7. Contact schedules — the submarine case
+## 7. Contact schedules: the submarine case
 
 Added after the brief was re-read: section 2.4 already claims tolerance of intermittent
 connectivity and that temporal self-divergence works disconnected. Neither had been run.
@@ -80,7 +80,7 @@ connectivity and that temporal self-divergence works disconnected. Neither had b
 | Choice | Decision | Rejected alternative and why |
 |---|---|---|
 | Seam | `participation(round_idx) -> [client ids]` on `run_federated`, a third seam next to the hook and the fault | Adding schedule fields to `FedConfig` would change every existing fingerprint. |
-| Silent-round model | The boat does nothing: no training, no report; on its next contact it syncs to the current global model | The realistic alternative — the boat keeps training on a stale model while submerged and returns one large update on surfacing — is asynchronous aggregation (FedBuff-style). It changes the aggregation rule itself, which is a research question in its own right and would confound every integrity measurement with a staleness effect. Out of scope for this harness; named in the handoff as the phase-two extension. |
+| Silent-round model | The boat does nothing: no training, no report; on its next contact it syncs to the current global model | The realistic alternative: the boat keeps training on a stale model while submerged and returns one large update on surfacing, is asynchronous aggregation (FedBuff-style). It changes the aggregation rule itself, which is a research question in its own right and would confound every integrity measurement with a staleness effect. Out of scope for this harness; named in the handoff as the phase-two extension. |
 | Statistics | Every temporal statistic runs over a node's own observed rounds | Computing against fleet rounds made a silent round look like a step. |
 | Timing | Time to detection is also counted in contacts | "Five rounds" is meaningless to a boat that surfaces every third round. |
 | Downlink | Not modelled, because the battery is fixed for the life of a deployment: it is loaded before the patrol and only its fingerprint travels | Sending five hundred samples down a submarine link would cost more than every report the boat ever sends back. The stable-battery design already avoids it; this is stated rather than simulated. |
