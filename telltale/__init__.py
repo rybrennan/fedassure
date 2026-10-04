@@ -1,4 +1,4 @@
-"""fedassure — a measurement harness for federated aggregation integrity.
+"""telltale — a measurement harness for federated aggregation integrity.
 
 Scope, held deliberately narrow:
 

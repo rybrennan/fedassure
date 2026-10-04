@@ -39,7 +39,7 @@ import torch
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
 
-from fedassure import (  # noqa: E402
+from telltale import (  # noqa: E402
     FedConfig,
     dirichlet_partition,
     load_dataset,
@@ -47,10 +47,10 @@ from fedassure import (  # noqa: E402
     run_federated,
     skew_summary,
 )
-from fedassure.detect import characterise, check_reports, level_series, offset_change, persistence_series  # noqa: E402
-from fedassure.contact import ContactSchedule  # noqa: E402
-from fedassure.faults import KINDS, FaultSpec, make_fault  # noqa: E402
-from fedassure.probes import (  # noqa: E402
+from telltale.detect import characterise, check_reports, level_series, offset_change, persistence_series  # noqa: E402
+from telltale.contact import ContactSchedule  # noqa: E402
+from telltale.faults import KINDS, FaultSpec, make_fault  # noqa: E402
+from telltale.probes import (  # noqa: E402
     ProbeConfig,
     ProbeMonitor,
     build_probe_battery,

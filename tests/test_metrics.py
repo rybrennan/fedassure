@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from fedassure.metrics import (
+from telltale.metrics import (
     Threshold,
     calibrate,
     calibrate_by_class,

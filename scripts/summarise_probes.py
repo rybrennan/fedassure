@@ -18,8 +18,8 @@ import numpy as np
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
 
-from fedassure.detect import level_series  # noqa: E402
-from fedassure.probes import quantise  # noqa: E402
+from telltale.detect import level_series  # noqa: E402
+from telltale.probes import quantise  # noqa: E402
 
 RESULTS = REPO / "results"
 

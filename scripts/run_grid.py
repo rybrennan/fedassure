@@ -26,9 +26,9 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
 
-from fedassure import FedConfig  # noqa: E402
-from fedassure.faults import FaultSpec  # noqa: E402
-from fedassure.probes import ProbeConfig  # noqa: E402
+from telltale import FedConfig  # noqa: E402
+from telltale.faults import FaultSpec  # noqa: E402
+from telltale.probes import ProbeConfig  # noqa: E402
 
 RESULTS = REPO / "results"
 PY = REPO / ".venv" / "bin" / "python"

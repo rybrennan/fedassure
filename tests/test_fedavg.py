@@ -3,9 +3,9 @@ from __future__ import annotations
 import pytest
 import torch
 
-from fedassure.config import FedConfig
-from fedassure.fedavg import ClientUpdate, aggregate, evaluate, run_federated
-from fedassure.models import build_model
+from telltale.config import FedConfig
+from telltale.fedavg import ClientUpdate, aggregate, evaluate, run_federated
+from telltale.models import build_model
 from helpers import equal_parts, tiny_dataset
 
 

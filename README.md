@@ -1,4 +1,4 @@
-# fedassure
+# telltale
 
 **A measurement harness for federated aggregation integrity.**
 
@@ -134,7 +134,7 @@ Three properties follow from that design, and each maps to a real constraint:
 
 ## Why there is no Flower or Ray
 
-FedAvg (McMahan et al., 2017) is implemented directly in `fedassure/fedavg.py`, about eighty lines.
+FedAvg (McMahan et al., 2017) is implemented directly in `telltale/fedavg.py`, about eighty lines.
 Flower's simulation backend requires Ray, which adds heavy dependencies and actor-based scheduling
 for no measurement benefit.
 
@@ -220,7 +220,7 @@ Stage 2 adds the instrument. Design choices and rejected alternatives are record
 - **Payload.** `n_probes × n_classes` scalars per node per round, independent of model size
   and local data volume.
 
-Three statistics per node per round, in `fedassure/detect.py`:
+Three statistics per node per round, in `telltale/detect.py`:
 
 | Statistic | What it is | Why |
 |---|---|---|
@@ -591,7 +591,7 @@ The harness above is framework-free on purpose, so its numbers reproduce bit for
 section is the other half: evidence that the same battery and detector drop into a standard
 federated learning framework without modification.
 
-`fedassure/integrations/flower.py` packages the layer as a Flower strategy (`IntegrityFedAvg`,
+`telltale/integrations/flower.py` packages the layer as a Flower strategy (`IntegrityFedAvg`,
 a `FedAvg` subclass). It implements the interface the solution brief promises:
 
 - **Probe battery out.** Every node builds the same battery from a shared seed and returns its

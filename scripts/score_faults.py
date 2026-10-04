@@ -26,7 +26,7 @@ import numpy as np
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
 
-from fedassure.detect import (  # noqa: E402
+from telltale.detect import (  # noqa: E402
     level_series,
     offset_change,
     persistence_series,
@@ -34,8 +34,8 @@ from fedassure.detect import (  # noqa: E402
     self_referenced_level,
     cusum,
 )
-from fedassure.contact import ContactSchedule  # noqa: E402
-from fedassure.metrics import calibrate_by_class, flags_by_class, score_flags  # noqa: E402
+from telltale.contact import ContactSchedule  # noqa: E402
+from telltale.metrics import calibrate_by_class, flags_by_class, score_flags  # noqa: E402
 
 RESULTS = REPO / "results"
 BURN_IN = 10

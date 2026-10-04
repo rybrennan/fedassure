@@ -31,7 +31,7 @@ try:
     from flwr.server.client_proxy import ClientProxy
     from flwr.server.strategy import FedAvg
 except ImportError as exc:  # pragma: no cover - exercised only without flwr installed
-    raise ImportError("fedassure.integrations.flower requires `pip install flwr`") from exc
+    raise ImportError("telltale.integrations.flower requires `pip install flwr`") from exc
 
 
 PROBE_KEY = "probe_scores"

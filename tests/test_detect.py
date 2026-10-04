@@ -4,8 +4,8 @@ import numpy as np
 import pytest
 import torch
 
-from fedassure.config import FedConfig
-from fedassure.detect import (
+from telltale.config import FedConfig
+from telltale.detect import (
     LN2,
     characterise,
     check_reports,
@@ -23,9 +23,9 @@ from fedassure.detect import (
     self_divergence,
     self_referenced_level,
 )
-from fedassure.fedavg import run_federated
-from fedassure.models import build_model
-from fedassure.probes import ProbeConfig, ProbeMonitor, ProbeReport, build_probe_battery
+from telltale.fedavg import run_federated
+from telltale.models import build_model
+from telltale.probes import ProbeConfig, ProbeMonitor, ProbeReport, build_probe_battery
 from helpers import equal_parts, tiny_dataset
 
 

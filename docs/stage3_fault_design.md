@@ -1,6 +1,6 @@
 # Stage 3 design record: fault injection and the first operating measurements
 
-Decision record for `fedassure/faults.py`, `fedassure/metrics.py`, and the statistics added
+Decision record for `telltale/faults.py`, `telltale/metrics.py`, and the statistics added
 to `detect.py` during stage 3. The README carries current results; this file carries the
 choices, what motivated each, and which were made *after* seeing a fault run.
 

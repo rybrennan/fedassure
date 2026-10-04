@@ -5,7 +5,7 @@ import pytest
 import torch
 from scipy.io import wavfile
 
-from fedassure.acoustic import (
+from telltale.acoustic import (
     CLASSES,
     N_FRAMES,
     N_MELS,

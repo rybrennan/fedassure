@@ -24,7 +24,7 @@ import numpy as np  # noqa: E402
 
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
-from fedassure.detect import cusum, level_series, offset_change, persistence_series  # noqa: E402
+from telltale.detect import cusum, level_series, offset_change, persistence_series  # noqa: E402
 
 RESULTS = REPO / "results"
 FIG = REPO / "figures"
@@ -280,9 +280,9 @@ def write_index():
         ("confound.png", "Why no fixed threshold can work: healthy cross-node divergence spans 20x across heterogeneity with no fault present."),
         ("bandwidth.png", "The bandwidth tradeoff, measured: the healthy temporal floor barely moves from 200 bytes to 10 kB per node per round, because it is the model moving, not the battery being small."),
     ]
-    html = ["<!doctype html><meta charset=utf-8><title>fedassure figures</title>",
+    html = ["<!doctype html><meta charset=utf-8><title>telltale figures</title>",
             "<style>body{font:15px/1.5 system-ui;max-width:760px;margin:2rem auto;padding:0 1rem;color:#0b0b0b;background:#fcfcfb}img{width:100%;border:1px solid #e6e5e1}figcaption{color:#52514e;margin:.4rem 0 2rem}</style>",
-            "<h1>fedassure — figures</h1><p>Generated from <code>results/</code> by <code>scripts/make_figures.py</code>. Every number is read from a result file. The repository states no detection probability yet.</p>"]
+            "<h1>telltale — figures</h1><p>Generated from <code>results/</code> by <code>scripts/make_figures.py</code>. Every number is read from a result file. The repository states no detection probability yet.</p>"]
     for f, cap in items:
         if (FIG / f).exists():
             html.append(f"<figure><img src='{f}' alt='{cap}'><figcaption>{cap}</figcaption></figure>")

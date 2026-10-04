@@ -4,10 +4,10 @@ import numpy as np
 import pytest
 import torch
 
-from fedassure.config import FedConfig
-from fedassure.fedavg import run_federated
-from fedassure.models import build_model
-from fedassure.probes import (
+from telltale.config import FedConfig
+from telltale.fedavg import run_federated
+from telltale.models import build_model
+from telltale.probes import (
     ProbeConfig,
     ProbeMonitor,
     build_probe_battery,

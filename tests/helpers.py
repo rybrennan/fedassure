@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 import torch
 
-from fedassure.data import Dataset
+from telltale.data import Dataset
 
 
 def tiny_dataset(n_train: int = 240, n_test: int = 80, n_classes: int = 4) -> Dataset:

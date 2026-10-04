@@ -1,6 +1,6 @@
 # Stage 2 design record: probe battery and divergence
 
-Decision record for `fedassure/probes.py` and `fedassure/detect.py`. The README carries the
+Decision record for `telltale/probes.py` and `telltale/detect.py`. The README carries the
 current state and results; this file carries the *choices* and the alternatives that were
 rejected, so a later stage can revisit one without re-deriving all of them.
 

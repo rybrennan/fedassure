@@ -3,7 +3,7 @@
 Stages were tagged in the private working repository. This public repository is a single squashed release (`v0.6.0`); each entry below states what that stage claimed and what it did not.
 
 ## v0.6.0 (2026-09-23): the layer as a Flower strategy
-- `fedassure.integrations.flower.IntegrityFedAvg`, a Flower `FedAvg` subclass: nodes return
+- `telltale.integrations.flower.IntegrityFedAvg`, a Flower `FedAvg` subclass: nodes return
   probe scores (float16, about 1 kB) in the fit-result metrics; the strategy runs the same
   `level_series` and `cusum` functions as the harness and can quarantine flagged nodes.
 - `scripts/flower_demo.py`: five client processes over gRPC. One slow drift, flagged on the right
@@ -21,7 +21,7 @@ Stages were tagged in the private working repository. This public repository is 
 - Licence, citation, lock file, CI, Dockerfile, reproduce script, tracked result summaries.
 
 ## v0.4.0 (2026-09-09): second modality, submarine schedule, threshold sweep
-- DeepShip underwater acoustics through the unchanged harness (`fedassure/acoustic.py`).
+- DeepShip underwater acoustics through the unchanged harness (`telltale/acoustic.py`).
 - Contact schedules: submarine nodes report every k rounds; temporal statistics run over a
   node's own contacts; time to detection in contacts.
 - Thresholds per platform class; CUSUM reference spread pooled where a class is starved.

@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 import torch
 
-from fedassure.data import (
+from telltale.data import (
     dirichlet_partition,
     partition_label_matrix,
     skew_summary,

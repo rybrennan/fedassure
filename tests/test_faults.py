@@ -4,10 +4,10 @@ import numpy as np
 import pytest
 import torch
 
-from fedassure.config import FedConfig
-from fedassure.faults import FaultSpec, corrupt_labels, make_fault, transform_inputs
-from fedassure.fedavg import run_federated
-from fedassure.probes import ProbeConfig, ProbeMonitor, build_probe_battery
+from telltale.config import FedConfig
+from telltale.faults import FaultSpec, corrupt_labels, make_fault, transform_inputs
+from telltale.fedavg import run_federated
+from telltale.probes import ProbeConfig, ProbeMonitor, build_probe_battery
 from helpers import equal_parts, tiny_dataset
 
 

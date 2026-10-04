@@ -2,14 +2,14 @@
 
 ## This harness
 
-Anchor 163 LLC, *fedassure: a measurement harness for federated aggregation integrity*, 2026.
-https://github.com/rybrennan/fedassure. MIT licence (see `LICENSE`).
+Anchor 163 LLC, *telltale: a measurement harness for federated aggregation integrity*, 2026.
+https://github.com/rybrennan/telltale. MIT licence (see `LICENSE`).
 
 ## Methods this builds on
 
 - McMahan, B., Moore, E., Ramage, D., Hampson, S., Arcas, B. A. y. (2017). Communication-efficient
   learning of deep networks from decentralized data. *AISTATS*. Used for FedAvg, implemented directly in
-  `fedassure/fedavg.py`.
+  `telltale/fedavg.py`.
 - Hsu, T.-M. H., Qi, H., Brown, M. (2019). Measuring the effects of non-identical data distribution
   for federated visual classification. arXiv:1909.06335. Used for Dirichlet non-IID partitioning.
 - Page, E. S. (1954). Continuous inspection schemes. *Biometrika* 41(1–2). Used for CUSUM.

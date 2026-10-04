@@ -4,9 +4,9 @@ import numpy as np
 import pytest
 import torch
 
-from fedassure.config import FedConfig
-from fedassure.contact import ContactSchedule
-from fedassure.detect import (
+from telltale.config import FedConfig
+from telltale.contact import ContactSchedule
+from telltale.detect import (
     cusum,
     level_series,
     offset_change,
@@ -14,10 +14,10 @@ from fedassure.detect import (
     self_divergence,
     self_referenced_level,
 )
-from fedassure.faults import FaultSpec, make_fault
-from fedassure.fedavg import run_federated
-from fedassure.metrics import Threshold, score_fault_run
-from fedassure.probes import ProbeConfig, ProbeMonitor, build_probe_battery
+from telltale.faults import FaultSpec, make_fault
+from telltale.fedavg import run_federated
+from telltale.metrics import Threshold, score_fault_run
+from telltale.probes import ProbeConfig, ProbeMonitor, build_probe_battery
 from helpers import equal_parts, tiny_dataset
 
 

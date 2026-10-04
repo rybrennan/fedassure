@@ -12,7 +12,7 @@ import pytest
 flwr = pytest.importorskip("flwr")
 from flwr.common import Code, FitRes, Status, ndarrays_to_parameters, parameters_to_ndarrays  # noqa: E402
 
-from fedassure.integrations.flower import (  # noqa: E402
+from telltale.integrations.flower import (  # noqa: E402
     FINGERPRINT_KEY,
     NODE_KEY,
     PROBE_KEY,

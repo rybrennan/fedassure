@@ -35,16 +35,16 @@ warnings.filterwarnings("ignore")
 import numpy as np  # noqa: E402
 import torch  # noqa: E402
 
-from fedassure.config import FedConfig  # noqa: E402
-from fedassure.data import dirichlet_partition, load_dataset  # noqa: E402
-from fedassure.faults import FaultSpec, make_fault  # noqa: E402
-from fedassure.fedavg import evaluate, local_train  # noqa: E402
-from fedassure.models import build_model  # noqa: E402
-from fedassure.probes import ProbeConfig, build_probe_battery, score_probes  # noqa: E402
+from telltale.config import FedConfig  # noqa: E402
+from telltale.data import dirichlet_partition, load_dataset  # noqa: E402
+from telltale.faults import FaultSpec, make_fault  # noqa: E402
+from telltale.fedavg import evaluate, local_train  # noqa: E402
+from telltale.models import build_model  # noqa: E402
+from telltale.probes import ProbeConfig, build_probe_battery, score_probes  # noqa: E402
 
 import os
 N_NODES, ALPHA = 5, 0.5
-ROUNDS = int(os.environ.get("FEDASSURE_ROUNDS", "30"))
+ROUNDS = int(os.environ.get("TELLTALE_ROUNDS", "30"))
 ONSET, RAMP, REFERENCE = 15, 10, slice(5, 15)
 N_PROBES = 50  # ~1 kB at float16 x 10 classes: the brief's operating point
 
@@ -62,7 +62,7 @@ def run_client(node: int, address: str, fault_json: str | None) -> None:
     import flwr
     from flwr.compat.client.app import start_client
 
-    from fedassure.integrations.flower import FINGERPRINT_KEY, NODE_KEY, PROBE_KEY, encode_scores
+    from telltale.integrations.flower import FINGERPRINT_KEY, NODE_KEY, PROBE_KEY, encode_scores
 
     cfg = FedConfig(n_clients=N_NODES, rounds=ROUNDS, dirichlet_alpha=ALPHA)
     ds = load_dataset(cfg.dataset)
@@ -101,7 +101,7 @@ def run_federation(fault: FaultSpec | None, threshold: float | None, quarantine:
     import flwr
     from flwr.server import ServerConfig
 
-    from fedassure.integrations.flower import IntegrityFedAvg
+    from telltale.integrations.flower import IntegrityFedAvg
 
     ds = load_dataset("fashion_mnist")
     battery = build_probe_battery(ds, ProbeConfig(n_probes=N_PROBES))
