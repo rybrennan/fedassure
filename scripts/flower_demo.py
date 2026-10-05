@@ -32,6 +32,8 @@ REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
 warnings.filterwarnings("ignore")
 
+import os
+
 import numpy as np  # noqa: E402
 import torch  # noqa: E402
 
@@ -42,7 +44,6 @@ from telltale.fedavg import evaluate, local_train  # noqa: E402
 from telltale.models import build_model  # noqa: E402
 from telltale.probes import ProbeConfig, build_probe_battery, score_probes  # noqa: E402
 
-import os
 N_NODES, ALPHA = 5, 0.5
 ROUNDS = int(os.environ.get("TELLTALE_ROUNDS", "30"))
 ONSET, RAMP, REFERENCE = 15, 10, slice(5, 15)
@@ -62,7 +63,12 @@ def run_client(node: int, address: str, fault_json: str | None) -> None:
     import flwr
     from flwr.compat.client.app import start_client
 
-    from telltale.integrations.flower import FINGERPRINT_KEY, NODE_KEY, PROBE_KEY, encode_scores
+    from telltale.integrations.flower import (
+        FINGERPRINT_KEY,
+        NODE_KEY,
+        PROBE_KEY,
+        encode_scores,
+    )
 
     cfg = FedConfig(n_clients=N_NODES, rounds=ROUNDS, dirichlet_alpha=ALPHA)
     ds = load_dataset(cfg.dataset)

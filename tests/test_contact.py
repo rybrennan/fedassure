@@ -3,6 +3,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 import torch
+from helpers import equal_parts, tiny_dataset
 
 from telltale.config import FedConfig
 from telltale.contact import ContactSchedule
@@ -18,8 +19,6 @@ from telltale.faults import FaultSpec, make_fault
 from telltale.fedavg import run_federated
 from telltale.metrics import Threshold, score_fault_run
 from telltale.probes import ProbeConfig, ProbeMonitor, build_probe_battery
-from helpers import equal_parts, tiny_dataset
-
 
 # ── schedule ──────────────────────────────────────────────────────────────────
 
@@ -99,7 +98,7 @@ def test_self_divergence_compares_to_previous_contact():
 
 
 def test_offset_change_and_persistence_run_over_contacts():
-    dense, sparse = gapped()
+    _, sparse = gapped()
     off_s = level_series(sparse)["offset"]
     ch = offset_change(off_s, window=2)
     ps = persistence_series(ch, span=2)

@@ -2,12 +2,11 @@ from __future__ import annotations
 
 import pytest
 import torch
+from helpers import equal_parts, tiny_dataset
 
 from telltale.config import FedConfig
 from telltale.fedavg import ClientUpdate, aggregate, evaluate, run_federated
 from telltale.models import build_model
-from helpers import equal_parts, tiny_dataset
-
 
 # ── aggregation ───────────────────────────────────────────────────────────────
 
@@ -40,8 +39,8 @@ def test_aggregate_is_weighted_by_sample_count():
 def test_aggregate_of_identical_states_is_identity():
     state = {"w": torch.tensor([1.5, -2.5]), "b": torch.tensor([0.25])}
     out = aggregate([ClientUpdate(i, 0, 10 * (i + 1), 0.0, state) for i in range(4)])
-    for k in state:
-        torch.testing.assert_close(out[k], state[k])
+    for k, v in state.items():
+        torch.testing.assert_close(out[k], v)
 
 
 def test_aggregate_preserves_integer_buffers():

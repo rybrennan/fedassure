@@ -21,6 +21,7 @@ class SmallCNN(nn.Module):
     """~200k parameter CNN for 28x28 single-channel inputs."""
 
     def __init__(self, n_classes: int = 10, in_channels: int = 1) -> None:
+        """`in_channels`-channel 28x28 input, `n_classes` output logits."""
         super().__init__()
         self.features = nn.Sequential(
             nn.Conv2d(in_channels, 16, kernel_size=3, padding=1),
@@ -38,6 +39,7 @@ class SmallCNN(nn.Module):
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Logits, shape (batch, n_classes)."""
         return self.classifier(self.features(x))
 
 
@@ -54,4 +56,5 @@ def build_model(name: str, n_classes: int, seed: int, device: str = "cpu") -> nn
 
 
 def count_parameters(model: nn.Module) -> int:
+    """Number of trainable parameters."""
     return sum(p.numel() for p in model.parameters() if p.requires_grad)

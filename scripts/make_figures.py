@@ -11,7 +11,6 @@ series across figures (blue = alpha 100, orange = 0.5, aqua = 0.1).
 
 from __future__ import annotations
 
-import glob
 import json
 import sys
 from pathlib import Path
@@ -24,7 +23,7 @@ import numpy as np  # noqa: E402
 
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
-from telltale.detect import cusum, level_series, offset_change, persistence_series  # noqa: E402
+from telltale.detect import cusum, level_series  # noqa: E402
 
 RESULTS = REPO / "results"
 FIG = REPO / "figures"
@@ -80,7 +79,7 @@ def fig_confound(runs):
     fig, ax = plt.subplots(figsize=(6.4, 3.4))
     alphas = [100.0, 0.5, 0.1]
     for i, alpha in enumerate(alphas):
-        d, probs = runs[alpha]
+        _, probs = runs[alpha]
         lv = level_series(probs)["level"][20:]
         vals = lv[~np.isnan(lv)]
         ax.scatter(np.full(vals.size, i) + np.random.default_rng(0).uniform(-0.12, 0.12, vals.size), vals,

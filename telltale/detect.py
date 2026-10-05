@@ -41,6 +41,7 @@ MAD_TO_SD = 1.4826
 
 
 def _clip(p: np.ndarray) -> np.ndarray:
+    """float64, clipped to [EPS, 1] so that log() is finite on zero probabilities."""
     return np.clip(np.asarray(p, dtype=np.float64), EPS, 1.0)
 
 
@@ -175,7 +176,7 @@ def offset_change(offset: np.ndarray, window: int) -> np.ndarray:
     """
     if window < 1:
         raise ValueError("window must be >= 1")
-    R, K = offset.shape[:2]
+    K = offset.shape[1]
     out = np.full_like(offset, np.nan)
     for k in range(K):
         obs = _observed_rounds(offset, k)
@@ -364,9 +365,12 @@ def check_reports(
         row_err = float((p.sum(dim=1) - 1.0).abs().max())
         if row_err > row_tol:
             issues.append(f"{who}: rows do not sum to 1 (max err {row_err:.2e})")
-        if previous is not None and rep.client_id in previous:
-            if torch.equal(p, previous[rep.client_id]):
-                issues.append(f"{who}: report is bitwise identical to previous round (replay)")
+        if (
+            previous is not None
+            and rep.client_id in previous
+            and torch.equal(p, previous[rep.client_id])
+        ):
+            issues.append(f"{who}: report is bitwise identical to previous round (replay)")
     return issues
 
 

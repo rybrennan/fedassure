@@ -22,6 +22,8 @@ DEFAULT_ROOT = Path(__file__).resolve().parent.parent / "data"
 
 @dataclass(frozen=True)
 class Dataset:
+    """A dataset held in memory as normalised tensors, train and test splits."""
+
     train_x: torch.Tensor  # (N, 1, 28, 28) float32, normalised
     train_y: torch.Tensor  # (N,) int64
     test_x: torch.Tensor
@@ -31,6 +33,7 @@ class Dataset:
 
     @property
     def n_train(self) -> int:
+        """Number of training samples."""
         return int(self.train_x.shape[0])
 
 
@@ -55,6 +58,9 @@ def load_dataset(name: str = "fashion_mnist", root: Path | None = None) -> Datas
     mean, std = _NORM[name]
 
     def prep(split) -> tuple[torch.Tensor, torch.Tensor]:
+        """Raw uint8 split -> (N, 1, 28, 28) float32 scaled to [0, 1] then standardised,
+        and int64 labels.
+        """
         x = split.data.to(torch.float32).div_(255.0).sub_(mean).div_(std)
         return x.unsqueeze(1).contiguous(), split.targets.to(torch.int64).contiguous()
 

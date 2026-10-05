@@ -27,6 +27,8 @@ import numpy as np
 
 @dataclass(frozen=True)
 class Threshold:
+    """A detection threshold on one statistic, with how it was calibrated."""
+
     statistic: str
     value: float
     burn_in: int
@@ -39,6 +41,7 @@ class Threshold:
     fifteen values is not a ceiling; report this next to every threshold."""
 
     def to_dict(self) -> dict:
+        """Plain-dict form, for the results JSON."""
         return asdict(self)
 
 
@@ -104,6 +107,8 @@ def false_alarm_rate(healthy: np.ndarray, thr: Threshold) -> float:
 
 @dataclass(frozen=True)
 class DetectionOutcome:
+    """How one faulted run scored against its target node and the rest of the fleet."""
+
     detected: bool
     detection_round: int | None
     time_to_detection: int | None
@@ -117,6 +122,7 @@ class DetectionOutcome:
     when the node reports every round."""
 
     def to_dict(self) -> dict:
+        """Plain-dict form, for the results JSON."""
         return asdict(self)
 
 

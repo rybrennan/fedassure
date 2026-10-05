@@ -10,7 +10,13 @@ import numpy as np
 import pytest
 
 flwr = pytest.importorskip("flwr")
-from flwr.common import Code, FitRes, Status, ndarrays_to_parameters, parameters_to_ndarrays  # noqa: E402
+from flwr.common import (  # noqa: E402
+    Code,
+    FitRes,
+    Status,
+    ndarrays_to_parameters,
+    parameters_to_ndarrays,
+)
 
 from telltale.integrations.flower import (  # noqa: E402
     FINGERPRINT_KEY,

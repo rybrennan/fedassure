@@ -51,10 +51,12 @@ TEST_EVERY = 5
 
 
 def _hz_to_mel(f: np.ndarray | float) -> np.ndarray:
+    """HTK mel scale: 2595 * log10(1 + f / 700)."""
     return 2595.0 * np.log10(1.0 + np.asarray(f, dtype=np.float64) / 700.0)
 
 
 def _mel_to_hz(m: np.ndarray) -> np.ndarray:
+    """Inverse of `_hz_to_mel`."""
     return 700.0 * (10.0 ** (np.asarray(m, dtype=np.float64) / 2595.0) - 1.0)
 
 
@@ -90,6 +92,11 @@ def log_mel_image(x: np.ndarray, sr: int = SAMPLE_RATE, fb: np.ndarray | None = 
 
 
 def segment(x: np.ndarray, sr: int = SAMPLE_RATE) -> list[np.ndarray]:
+    """Cut `x` into WINDOW_S-second windows every HOP_S seconds.
+
+    A trailing partial window is dropped, so a recording shorter than one window
+    yields none.
+    """
     n_win, n_hop = int(WINDOW_S * sr), int(HOP_S * sr)
     return [x[s : s + n_win] for s in range(0, len(x) - n_win + 1, n_hop)]
 
@@ -120,6 +127,11 @@ def split_by_recording(files: list[tuple[Path, int]], test_every: int = TEST_EVE
     return train, test
 
 
+def _standardise(images: np.ndarray, mean: float, std: float) -> torch.Tensor:
+    """(N, 28, 28) log-mel images -> (N, 1, 28, 28) tensor, standardised."""
+    return torch.from_numpy((images - mean) / std).unsqueeze(1).contiguous()
+
+
 def load_deepship(root: Path, cache: Path | None = None) -> Dataset:
     """Build (or load from cache) the DeepShip dataset as 28x28 images.
 
@@ -138,6 +150,11 @@ def load_deepship(root: Path, cache: Path | None = None) -> Dataset:
     fb = mel_filterbank()
 
     def build(items):
+        """(file, label) pairs -> (log-mel images, int64 labels), un-normalised.
+
+        Multi-channel audio is averaged to mono and integer PCM is scaled to [-1, 1].
+        The caller normalises with the TRAIN split's statistics.
+        """
         xs, ys = [], []
         for f, k in items:
             sr, x = wavfile.read(f)
@@ -153,10 +170,9 @@ def load_deepship(root: Path, cache: Path | None = None) -> Dataset:
     xtr, ytr = build(train_files)
     xte, yte = build(test_files)
     mean, std = float(xtr.mean()), float(xtr.std())
-    to_t = lambda a: torch.from_numpy((a - mean) / std).unsqueeze(1).contiguous()  # noqa: E731
     blob = {
-        "train_x": to_t(xtr), "train_y": torch.from_numpy(ytr),
-        "test_x": to_t(xte), "test_y": torch.from_numpy(yte),
+        "train_x": _standardise(xtr, mean, std), "train_y": torch.from_numpy(ytr),
+        "test_x": _standardise(xte, mean, std), "test_y": torch.from_numpy(yte),
     }
     if cache is not None:
         Path(cache).parent.mkdir(parents=True, exist_ok=True)
