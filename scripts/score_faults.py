@@ -26,16 +26,20 @@ import numpy as np
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
 
+from telltale.contact import ContactSchedule  # noqa: E402
 from telltale.detect import (  # noqa: E402
+    cusum,
     level_series,
     offset_change,
     persistence_series,
     self_divergence,
     self_referenced_level,
-    cusum,
 )
-from telltale.contact import ContactSchedule  # noqa: E402
-from telltale.metrics import calibrate_by_class, flags_by_class, score_flags  # noqa: E402
+from telltale.metrics import (  # noqa: E402
+    calibrate_by_class,
+    flags_by_class,
+    score_flags,
+)
 
 RESULTS = REPO / "results"
 BURN_IN = 10
@@ -156,7 +160,7 @@ def main() -> int:
         if key not in healthy:
             print(f"| {d['config']['dirichlet_alpha']} | {d['fault']['kind']} | no healthy run for these seeds |")
             continue
-        hd, hstats = healthy[key]
+        _, hstats = healthy[key]
         spec = d["fault"]
         bm = d["baseline_match"] or {}
         acc = (

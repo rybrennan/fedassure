@@ -7,12 +7,12 @@ from telltale.metrics import (
     Threshold,
     calibrate,
     calibrate_by_class,
-    flags_by_class,
-    score_flags,
     detection_probability,
     false_alarm_rate,
     flags,
+    flags_by_class,
     score_fault_run,
+    score_flags,
 )
 
 

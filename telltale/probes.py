@@ -55,6 +55,7 @@ class ProbeConfig:
     """Encoding assumed for the return payload when accounting bytes."""
 
     def __post_init__(self) -> None:
+        """Reject an empty battery, an unknown source split, or an unknown wire dtype."""
         if self.n_probes < 1:
             raise ValueError("n_probes must be >= 1")
         if self.source not in ("test", "train"):
@@ -63,9 +64,11 @@ class ProbeConfig:
             raise ValueError(f"scalar_dtype must be one of {list(BYTES_PER_SCALAR)}")
 
     def to_dict(self) -> dict:
+        """Plain-dict form; the input to `fingerprint`."""
         return asdict(self)
 
     def fingerprint(self) -> str:
+        """Stable 12-hex-digit hash of the config."""
         blob = json.dumps(self.to_dict(), sort_keys=True)
         return hashlib.sha256(blob.encode()).hexdigest()[:12]
 
@@ -75,6 +78,8 @@ class ProbeConfig:
 
 @dataclass(frozen=True)
 class ProbeBattery:
+    """The fixed probe inputs served to every node. Only `x` leaves the server."""
+
     x: torch.Tensor
     """(n, 1, 28, 28) — the only thing distributed to nodes."""
     y: torch.Tensor
@@ -88,9 +93,10 @@ class ProbeBattery:
 
     @property
     def n_probes(self) -> int:
+        """Number of probe inputs."""
         return int(self.x.shape[0])
 
-    def prefix(self, n: int) -> "ProbeBattery":
+    def prefix(self, n: int) -> ProbeBattery:
         """The nested sub-battery of the first `n` probes.
 
         Because probes are ordered round-robin by class, a prefix of length
@@ -228,6 +234,11 @@ class ProbeMonitor:
     """
 
     def __init__(self, battery: ProbeBattery, device: str = "cpu") -> None:
+        """Scoring happens in one template model that each client state is loaded into.
+
+        It is built under `fork_rng`, so constructing a monitor leaves the global RNG
+        untouched.
+        """
         self.battery = battery
         self.reports: list[ProbeReport] = []
         # build_model seeds the global generator; fork_rng makes that invisible.
@@ -235,11 +246,19 @@ class ProbeMonitor:
             self._template = build_model("small_cnn", battery.n_classes, seed=0, device=device)
 
     def score_state(self, state: StateDict) -> torch.Tensor:
+        """(n_probes, n_classes) probabilities the battery gets from a model holding `state`.
+
+        Runs under `fork_rng`, so scoring never perturbs the training RNG.
+        """
         with torch.random.fork_rng(devices=[]):
             self._template.load_state_dict(state)
             return score_probes(self._template, self.battery)
 
     def __call__(self, updates: list[ClientUpdate], round_idx: int) -> None:
+        """The `update_hook` entry point: append one `ProbeReport` per update.
+
+        Reads the updates and never modifies them.
+        """
         for u in updates:
             self.reports.append(
                 ProbeReport(
@@ -251,6 +270,7 @@ class ProbeMonitor:
             )
 
     def by_round(self) -> dict[int, list[ProbeReport]]:
+        """Reports grouped by round index."""
         out: dict[int, list[ProbeReport]] = {}
         for r in self.reports:
             out.setdefault(r.round_idx, []).append(r)

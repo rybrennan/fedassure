@@ -21,8 +21,8 @@ from __future__ import annotations
 import copy
 import random
 import time
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
-from typing import Callable, Iterable
 
 import numpy as np
 import torch
@@ -42,6 +42,10 @@ ShardTransform = Callable[
 
 
 def seed_everything(seed: int) -> None:
+    """Seed the Python, NumPy and torch global generators.
+
+    NumPy's legacy seed must be below 2**32, hence the modulus.
+    """
     random.seed(seed)
     np.random.seed(seed % (2**32))
     torch.manual_seed(seed)
@@ -76,6 +80,10 @@ class ClientUpdate:
 
 @dataclass
 class RoundRecord:
+    """One round's outcome: who reported, the global model's test metrics, the mean
+    client training loss, and wall-clock seconds.
+    """
+
     round_idx: int
     participants: list[int]
     test_loss: float
@@ -84,6 +92,7 @@ class RoundRecord:
     seconds: float
 
     def to_dict(self) -> dict:
+        """JSON form. The round index is keyed `round`, not `round_idx`."""
         return {
             "round": self.round_idx,
             "participants": self.participants,
@@ -96,6 +105,10 @@ class RoundRecord:
 
 @dataclass
 class FedResult:
+    """A finished run: config, per-round records, parameter count, the partition's
+    skew summary, and the final global state.
+    """
+
     config: FedConfig
     rounds: list[RoundRecord]
     n_parameters: int
@@ -104,12 +117,17 @@ class FedResult:
 
     @property
     def final_acc(self) -> float:
+        """Test accuracy after the last round."""
         return self.rounds[-1].test_acc
 
     def accuracy_curve(self) -> list[float]:
+        """Test accuracy per round, in round order."""
         return [r.test_acc for r in self.rounds]
 
     def to_dict(self) -> dict:
+        """JSON-serialisable summary, with the config fingerprint so the file traces to
+        its run. Omits `final_state`.
+        """
         return {
             "config": self.config.to_dict(),
             "fingerprint": self.config.fingerprint(),
@@ -212,6 +230,51 @@ def evaluate(
 # ── the loop ──────────────────────────────────────────────────────────────────
 
 
+def _select_participants(
+    rnd: int,
+    cfg: FedConfig,
+    participation: Callable[[int], list[int]] | None,
+    selection_rng: np.random.Generator,
+) -> list[int]:
+    """Sorted client ids that report in round `rnd`.
+
+    An explicit `participation` schedule wins; otherwise every client reports,
+    or a `client_fraction` sample is drawn. `selection_rng` is only advanced on
+    the sampling branch, so a schedule or full participation never perturbs it.
+    """
+    if participation is not None:
+        participants = sorted({int(c) for c in participation(rnd)})
+        if not participants or participants[0] < 0 or participants[-1] >= cfg.n_clients:
+            raise ValueError(f"participation returned {participants} for {cfg.n_clients} clients")
+        return participants
+    if cfg.clients_per_round >= cfg.n_clients:
+        return list(range(cfg.n_clients))
+    return sorted(
+        selection_rng.choice(cfg.n_clients, size=cfg.clients_per_round, replace=False).tolist()
+    )
+
+
+def _client_update(
+    model: nn.Module,
+    global_state: StateDict,
+    shard: tuple[torch.Tensor, torch.Tensor],
+    cid: int,
+    rnd: int,
+    cfg: FedConfig,
+    fault: ShardTransform | None,
+) -> ClientUpdate:
+    """One client's round: apply any fault to its shard, train from the global model."""
+    x, y = shard
+    if fault is not None:
+        x, y = fault(cid, rnd, x, y)
+    local = copy.deepcopy(model)
+    local.load_state_dict(global_state)
+    state, loss = local_train(local, x, y, cfg, seed=_derive_seed(cfg.train_seed, rnd, cid))
+    return ClientUpdate(
+        client_id=cid, round_idx=rnd, n_samples=int(x.shape[0]), train_loss=loss, state=state
+    )
+
+
 def run_federated(
     cfg: FedConfig,
     dataset: Dataset,
@@ -263,38 +326,11 @@ def run_federated(
     for rnd in range(cfg.rounds):
         started = time.perf_counter()
 
-        if participation is not None:
-            participants = sorted(set(int(c) for c in participation(rnd)))
-            if not participants or participants[0] < 0 or participants[-1] >= cfg.n_clients:
-                raise ValueError(f"participation returned {participants} for {cfg.n_clients} clients")
-        elif cfg.clients_per_round >= cfg.n_clients:
-            participants = list(range(cfg.n_clients))
-        else:
-            participants = sorted(
-                selection_rng.choice(
-                    cfg.n_clients, size=cfg.clients_per_round, replace=False
-                ).tolist()
-            )
-
-        updates: list[ClientUpdate] = []
-        for cid in participants:
-            x, y = shards[cid]
-            if fault is not None:
-                x, y = fault(cid, rnd, x, y)
-            local = copy.deepcopy(model)
-            local.load_state_dict(global_state)
-            state, loss = local_train(
-                local, x, y, cfg, seed=_derive_seed(cfg.train_seed, rnd, cid)
-            )
-            updates.append(
-                ClientUpdate(
-                    client_id=cid,
-                    round_idx=rnd,
-                    n_samples=int(x.shape[0]),
-                    train_loss=loss,
-                    state=state,
-                )
-            )
+        participants = _select_participants(rnd, cfg, participation, selection_rng)
+        updates = [
+            _client_update(model, global_state, shards[cid], cid, rnd, cfg, fault)
+            for cid in participants
+        ]
 
         if update_hook is not None:
             update_hook(updates, rnd)

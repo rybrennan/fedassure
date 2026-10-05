@@ -3,6 +3,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 import torch
+from helpers import equal_parts, tiny_dataset
 
 from telltale.config import FedConfig
 from telltale.fedavg import run_federated
@@ -16,8 +17,6 @@ from telltale.probes import (
     quantise,
     score_probes,
 )
-from helpers import equal_parts, tiny_dataset
-
 
 # ── battery construction ──────────────────────────────────────────────────────
 
@@ -167,7 +166,7 @@ def test_monitor_records_every_participant_every_round():
     assert len(monitor.reports) == 12
     by_round = monitor.by_round()
     assert sorted(by_round) == [0, 1, 2]
-    for rnd, reps in by_round.items():
+    for reps in by_round.values():
         assert [r.client_id for r in reps] == [0, 1, 2, 3]
         for r in reps:
             assert r.battery_fingerprint == battery.fingerprint

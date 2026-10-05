@@ -5,7 +5,9 @@ import pytest
 import torch
 
 from telltale.data import (
+    _assert_exact_partition,
     dirichlet_partition,
+    load_dataset,
     partition_label_matrix,
     skew_summary,
 )
@@ -95,3 +97,79 @@ def test_unsatisfiable_partition_raises_after_retries():
         dirichlet_partition(
             y, n_clients=20, alpha=0.01, seed=0, min_client_samples=5, max_tries=5
         )
+
+
+def test_partition_check_catches_dropped_samples():
+    """No public input can trigger the guard, so it is tested directly."""
+    with pytest.raises(AssertionError, match="covers 5 of 6"):
+        _assert_exact_partition([np.array([0, 1]), np.array([2, 3, 4])], total=6)
+
+
+def test_partition_check_catches_a_sample_given_to_two_clients():
+    with pytest.raises(AssertionError, match="more than one client"):
+        _assert_exact_partition([np.array([0, 1, 2]), np.array([2, 3, 4])], total=6)
+
+
+# ── load_dataset, with no download ────────────────────────────────────────────
+
+
+def fake_torchvision_dataset(calls: list[dict]):
+    """Stand-in for a torchvision dataset class: uint8 pixels, no network."""
+
+    class Fake:
+        def __init__(self, root, train, download):
+            calls.append({"root": root, "train": train, "download": download})
+            g = torch.Generator().manual_seed(1 if train else 2)
+            n = 30 if train else 10
+            self.data = torch.randint(0, 256, (n, 28, 28), generator=g, dtype=torch.uint8)
+            self.targets = torch.arange(n) % 10
+
+    return Fake
+
+
+@pytest.mark.parametrize(
+    ("name", "attr", "mean", "std"),
+    [("fashion_mnist", "FashionMNIST", 0.2860, 0.3530), ("mnist", "MNIST", 0.1307, 0.3081)],
+)
+def test_load_dataset_normalises_with_the_published_statistics(
+    tmp_path, monkeypatch, name, attr, mean, std
+):
+    """Pixels are scaled to [0, 1], then standardised; both splits use the same
+    training-split statistics, so the test split never informs the scale."""
+    pytest.importorskip("torchvision")
+    calls: list[dict] = []
+    monkeypatch.setattr(f"torchvision.datasets.{attr}", fake_torchvision_dataset(calls))
+
+    root = tmp_path / "nested" / "data"
+    ds = load_dataset(name, root=root)
+
+    assert root.is_dir()
+    assert [c["train"] for c in calls] == [True, False]
+    assert all(c["download"] and c["root"] == str(root) for c in calls)
+
+    raw = fake_torchvision_dataset([])(root, True, False).data
+    expected = ((raw.to(torch.float32) / 255.0 - mean) / std).unsqueeze(1)
+    assert ds.train_x.shape == (30, 1, 28, 28) and ds.test_x.shape == (10, 1, 28, 28)
+    torch.testing.assert_close(ds.train_x, expected)
+    assert ds.train_x.dtype == torch.float32 and ds.train_y.dtype == torch.int64
+    assert ds.n_classes == 10 and ds.name == name and ds.n_train == 30
+
+
+def test_load_dataset_rejects_an_unknown_name(tmp_path):
+    pytest.importorskip("torchvision")
+    with pytest.raises(ValueError, match="unknown dataset 'cifar'"):
+        load_dataset("cifar", root=tmp_path)
+
+
+def test_load_dataset_delegates_deepship_to_the_acoustic_loader(tmp_path, monkeypatch):
+    seen = {}
+    sentinel = object()
+
+    def fake_loader(root, cache):
+        seen.update(root=root, cache=cache)
+        return sentinel
+
+    monkeypatch.setattr("telltale.acoustic.load_deepship", fake_loader)
+
+    assert load_dataset("deepship", root=tmp_path) is sentinel
+    assert seen == {"root": tmp_path / "deepship", "cache": tmp_path / "deepship_28x28.pt"}

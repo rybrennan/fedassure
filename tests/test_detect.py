@@ -3,6 +3,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 import torch
+from helpers import equal_parts, tiny_dataset
 
 from telltale.config import FedConfig
 from telltale.detect import (
@@ -26,8 +27,6 @@ from telltale.detect import (
 from telltale.fedavg import run_federated
 from telltale.models import build_model
 from telltale.probes import ProbeConfig, ProbeMonitor, ProbeReport, build_probe_battery
-from helpers import equal_parts, tiny_dataset
-
 
 # ── divergences ───────────────────────────────────────────────────────────────
 

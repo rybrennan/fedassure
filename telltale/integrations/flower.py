@@ -45,6 +45,10 @@ def encode_scores(probs: np.ndarray) -> bytes:
 
 
 def decode_scores(blob: bytes, n_probes: int, n_classes: int) -> np.ndarray:
+    """Inverse of `encode_scores`: float16 bytes -> (n_probes, n_classes) float32.
+
+    Values come back at float16 precision; that is the wire format.
+    """
     return np.frombuffer(blob, dtype=np.float16).reshape(n_probes, n_classes).astype(np.float32)
 
 
@@ -61,6 +65,9 @@ class IntegrityState:
     fingerprint_mismatches: list[tuple[int, int]] = field(default_factory=list)
 
     def probs_array(self, n_rounds: int, n_nodes: int, n_probes: int, n_classes: int) -> np.ndarray:
+        """Dense (rounds, nodes, probes, classes) float32 array, the layout `detect`
+        consumes. NaN where a node did not report, or reported a mismatched battery.
+        """
         out = np.full((n_rounds, n_nodes, n_probes, n_classes), np.nan, dtype=np.float32)
         for r, by_node in self.probs.items():
             for k, p in by_node.items():
@@ -89,6 +96,12 @@ class IntegrityFedAvg(FedAvg):
         quarantine: bool = False,
         **fedavg_kwargs,
     ) -> None:
+        """`reference` is the CUSUM reference epoch, in harness (0-based) rounds.
+
+        With `threshold` set, a node whose CUSUM exceeds it is flagged. With
+        `quarantine` as well, a flagged node's update is excluded from aggregation
+        from that round on. Remaining keyword arguments go to Flower's FedAvg.
+        """
         super().__init__(**fedavg_kwargs)
         self.n_nodes = n_nodes
         self.n_probes = n_probes
@@ -113,6 +126,13 @@ class IntegrityFedAvg(FedAvg):
         results: list[tuple[ClientProxy, FitRes]],
         failures: list,
     ) -> tuple[Parameters | None, dict[str, Scalar]]:
+        """Record each node's probe scores, flag, optionally quarantine, then FedAvg.
+
+        A node whose battery fingerprint differs is logged as an instrument mismatch
+        and contributes no scores. If quarantine would exclude every node the full set
+        is aggregated instead. Adds `integrity_flagged` (comma-joined node ids) to the
+        returned metrics.
+        """
         r = server_round - 1
         self.state.probs.setdefault(r, {})
         node_of: dict[int, int] = {}

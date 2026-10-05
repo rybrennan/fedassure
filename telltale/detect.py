@@ -27,6 +27,9 @@ detector.
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+from typing import NamedTuple
+
 import numpy as np
 import torch
 
@@ -41,6 +44,7 @@ MAD_TO_SD = 1.4826
 
 
 def _clip(p: np.ndarray) -> np.ndarray:
+    """float64, clipped to [EPS, 1] so that log() is finite on zero probabilities."""
     return np.clip(np.asarray(p, dtype=np.float64), EPS, 1.0)
 
 
@@ -175,7 +179,7 @@ def offset_change(offset: np.ndarray, window: int) -> np.ndarray:
     """
     if window < 1:
         raise ValueError("window must be >= 1")
-    R, K = offset.shape[:2]
+    K = offset.shape[1]
     out = np.full_like(offset, np.nan)
     for k in range(K):
         obs = _observed_rounds(offset, k)
@@ -248,6 +252,70 @@ def self_referenced_level(level: np.ndarray, window: int) -> np.ndarray:
 # ── cumulative sum against a fixed reference epoch ────────────────────────────
 
 
+class _NodeReference(NamedTuple):
+    """One node's reference-epoch footprint."""
+
+    obs: np.ndarray  # every round the node reported
+    ref: list  # the subset of those inside the reference epoch
+    mu: float  # the node's own mean level over `ref`
+
+
+def _reference_contacts(level: np.ndarray, ref_rounds: set[int]) -> dict[int, _NodeReference]:
+    """Node -> reference footprint, for nodes with at least two reference contacts.
+
+    A node with fewer cannot have a spread estimated at all, so it is left out
+    and `cusum` returns NaN for it throughout.
+    """
+    refs = {}
+    for c in range(level.shape[1]):
+        obs = _observed_rounds(level[:, :, None], c)
+        ref = [r for r in obs if r in ref_rounds]
+        if len(ref) >= 2:
+            refs[c] = _NodeReference(obs, ref, level[ref, c].mean())
+    return refs
+
+
+def _pooled_reference_sd(
+    level: np.ndarray, refs: dict[int, _NodeReference], pool: np.ndarray, min_ref: int
+) -> dict:
+    """Pooled reference SD per platform class, only for the classes that need one.
+
+    A class whose every node has at least `min_ref` reference contacts is left
+    out, so its nodes keep their own per-node SD. For any other class the SD is
+    the root mean square of every member's deviations from its own reference
+    mean, with one degree of freedom spent per node. A class with no member in
+    `refs` maps to 0.0; no node ever looks that entry up.
+    """
+    pooled: dict = {}
+    for cls in np.unique(pool):
+        members = [c for c in refs if pool[c] == cls]
+        if members and min(len(refs[c].ref) for c in members) >= min_ref:
+            continue  # well-sampled class: per-node SD
+        devs = np.concatenate(
+            [level[refs[c].ref, c] - refs[c].mu for c in members] or [np.array([])]
+        )
+        dof = len(devs) - len(members)
+        pooled[cls] = float(np.sqrt((devs**2).sum() / dof)) if dof > 0 else 0.0
+    return pooled
+
+
+def _cusum_path(
+    level_col: np.ndarray, node: _NodeReference, sd: float, stop: int, k: float, two_sided: bool
+) -> Iterator[tuple[int, float]]:
+    """Yield (round, CUSUM value) over the node's own contacts from `stop` onward.
+
+    A silent round is never visited, so it neither adds nor decays the sum.
+    """
+    s_up = s_dn = 0.0
+    for r in node.obs:
+        if r < stop:
+            continue
+        z = (level_col[r] - node.mu) / sd
+        s_up = max(0.0, s_up + z - k)
+        s_dn = max(0.0, s_dn - z - k)
+        yield r, max(s_up, s_dn) if two_sided else s_up
+
+
 def cusum(
     level: np.ndarray,
     reference: slice,
@@ -290,45 +358,22 @@ def cusum(
     healthy runs before it is scored on any fault.
     """
     R, K = level.shape
-    ref_rounds = set(range(R)[reference])
-    if len(ref_rounds) < 2:
+    epoch = range(R)[reference]
+    if len(epoch) < 2:
         raise ValueError("reference epoch must span >= 2 rounds")
+    refs = _reference_contacts(level, set(epoch))
+    pool = None if pool is None else np.asarray(pool)
+    pooled_sd = {} if pool is None else _pooled_reference_sd(level, refs, pool, min_ref)
+
     out = np.full((R, K), np.nan)
-    stop = range(R)[reference].stop
-    refs = {}
-    for c in range(K):
-        obs = _observed_rounds(level[:, :, None], c)
-        ref = [r for r in obs if r in ref_rounds]
-        if len(ref) >= 2:
-            refs[c] = (obs, ref, level[ref, c].mean())
-    pooled_sd: dict = {}
-    if pool is not None:
-        pool = np.asarray(pool)
-        for cls in np.unique(pool):
-            counts = [len(ref) for c, (_, ref, _) in refs.items() if pool[c] == cls]
-            if counts and min(counts) >= min_ref:
-                continue  # well-sampled class: per-node SD
-            devs = np.concatenate(
-                [level[ref, c] - mu for c, (_, ref, mu) in refs.items() if pool[c] == cls]
-                or [np.array([])]
-            )
-            n_nodes = sum(1 for c in refs if pool[c] == cls)
-            dof = len(devs) - n_nodes
-            pooled_sd[cls] = float(np.sqrt((devs**2).sum() / dof)) if dof > 0 else 0.0
-    for c, (obs, ref, mu) in refs.items():
-        sd = pooled_sd.get(pool[c]) if pool is not None else None
+    for c, node in refs.items():
+        sd = None if pool is None else pooled_sd.get(pool[c])
         if sd is None:
-            sd = level[ref, c].std(ddof=1)
+            sd = level[node.ref, c].std(ddof=1)
         if sd <= 0:
             continue
-        S_up = S_dn = 0.0
-        for r in obs:
-            if r < stop:
-                continue
-            z = (level[r, c] - mu) / sd
-            S_up = max(0.0, S_up + z - k)
-            S_dn = max(0.0, S_dn - z - k)
-            out[r, c] = max(S_up, S_dn) if two_sided else S_up
+        for r, s in _cusum_path(level[:, c], node, sd, epoch.stop, k, two_sided):
+            out[r, c] = s
     return out
 
 
@@ -364,9 +409,12 @@ def check_reports(
         row_err = float((p.sum(dim=1) - 1.0).abs().max())
         if row_err > row_tol:
             issues.append(f"{who}: rows do not sum to 1 (max err {row_err:.2e})")
-        if previous is not None and rep.client_id in previous:
-            if torch.equal(p, previous[rep.client_id]):
-                issues.append(f"{who}: report is bitwise identical to previous round (replay)")
+        if (
+            previous is not None
+            and rep.client_id in previous
+            and torch.equal(p, previous[rep.client_id])
+        ):
+            issues.append(f"{who}: report is bitwise identical to previous round (replay)")
     return issues
 
 

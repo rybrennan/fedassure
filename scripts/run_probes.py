@@ -47,8 +47,14 @@ from telltale import (  # noqa: E402
     run_federated,
     skew_summary,
 )
-from telltale.detect import characterise, check_reports, level_series, offset_change, persistence_series  # noqa: E402
 from telltale.contact import ContactSchedule  # noqa: E402
+from telltale.detect import (  # noqa: E402
+    characterise,
+    check_reports,
+    level_series,
+    offset_change,
+    persistence_series,
+)
 from telltale.faults import KINDS, FaultSpec, make_fault  # noqa: E402
 from telltale.probes import (  # noqa: E402
     ProbeConfig,

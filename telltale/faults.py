@@ -44,6 +44,10 @@ KINDS = ("bias", "gain", "blur", "label_noise")
 
 @dataclass(frozen=True)
 class FaultSpec:
+    """One fault on one node: its kind, first active round, severity and ramp length.
+    Frozen and fingerprintable, so a result names the fault that produced it.
+    """
+
     kind: str
     node: int
     onset: int
@@ -56,6 +60,8 @@ class FaultSpec:
     """Only label_noise draws randomness; derived per (seed, node)."""
 
     def __post_init__(self) -> None:
+        """Reject an unknown kind, a negative node, onset, ramp or severity, and a
+        label_noise severity above 1 (it is a fraction)."""
         if self.kind not in KINDS:
             raise ValueError(f"kind must be one of {KINDS}")
         if self.node < 0:
@@ -80,9 +86,11 @@ class FaultSpec:
         return self.severity * min(1.0, (round_idx - self.onset + 1) / self.ramp)
 
     def to_dict(self) -> dict:
+        """Plain-dict form; the input to `fingerprint`."""
         return asdict(self)
 
     def fingerprint(self) -> str:
+        """Stable 12-hex-digit hash of the spec."""
         blob = json.dumps(self.to_dict(), sort_keys=True)
         return hashlib.sha256(blob.encode()).hexdigest()[:12]
 
@@ -91,6 +99,7 @@ class FaultSpec:
 
 
 def _gaussian_kernel(sigma: float, size: int = 5) -> torch.Tensor:
+    """Normalised (size, size) Gaussian kernel, the outer product of a 1-D one."""
     half = size // 2
     ax = torch.arange(-half, half + 1, dtype=torch.float32)
     k1 = torch.exp(-(ax**2) / (2.0 * sigma * sigma))
@@ -143,6 +152,7 @@ def corrupt_labels(
 
 
 def _derive_seed(*parts: int) -> int:
+    """Stable seed from a tuple of ints. Same construction as `fedavg._derive_seed`."""
     h = 0
     for p in parts:
         h = (h * 1_000_003 + int(p)) % (2**31 - 1)
@@ -161,6 +171,11 @@ def make_fault(specs: list[FaultSpec], n_classes: int) -> ShardTransform:
         by_node.setdefault(s.node, []).append(s)
 
     def fault(client_id: int, round_idx: int, x: torch.Tensor, y: torch.Tensor):
+        """Apply every spec on `client_id` that is active in `round_idx`.
+
+        Label noise rewrites `y`; every other kind transforms `x`. Returns (x, y), the
+        same objects when nothing is active.
+        """
         for s in by_node.get(client_id, ()):
             m = s.magnitude(round_idx)
             if m == 0.0:

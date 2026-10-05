@@ -17,6 +17,7 @@ Build order:
 from __future__ import annotations
 
 from .config import FedConfig
+from .contact import ContactSchedule
 from .data import (
     Dataset,
     dirichlet_partition,
@@ -24,7 +25,6 @@ from .data import (
     partition_label_matrix,
     skew_summary,
 )
-from .contact import ContactSchedule
 from .faults import FaultSpec, make_fault
 from .fedavg import (
     ClientUpdate,
@@ -50,34 +50,34 @@ from .probes import (
 __version__ = "0.1.0"
 
 __all__ = [
-    "FedConfig",
-    "Dataset",
-    "load_dataset",
-    "dirichlet_partition",
-    "partition_label_matrix",
-    "skew_summary",
     "ClientUpdate",
-    "RoundRecord",
+    "ContactSchedule",
+    "Dataset",
+    "FaultSpec",
+    "FedConfig",
     "FedResult",
-    "run_federated",
-    "aggregate",
-    "evaluate",
-    "seed_everything",
-    "SmallCNN",
-    "build_model",
-    "count_parameters",
     "ProbeBattery",
     "ProbeConfig",
     "ProbeMonitor",
     "ProbeReport",
-    "build_probe_battery",
-    "payload_bytes",
-    "score_probes",
-    "FaultSpec",
-    "make_fault",
-    "ContactSchedule",
+    "RoundRecord",
+    "SmallCNN",
     "Threshold",
+    "aggregate",
+    "build_model",
+    "build_probe_battery",
     "calibrate",
+    "count_parameters",
+    "dirichlet_partition",
+    "evaluate",
     "false_alarm_rate",
+    "load_dataset",
+    "make_fault",
+    "partition_label_matrix",
+    "payload_bytes",
+    "run_federated",
     "score_fault_run",
+    "score_probes",
+    "seed_everything",
+    "skew_summary",
 ]
