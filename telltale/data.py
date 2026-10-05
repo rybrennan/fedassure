@@ -115,22 +115,7 @@ def dirichlet_partition(
     for attempt in range(max_tries):
         # A distinct stream per attempt keeps redraws deterministic given the seed.
         rng = np.random.default_rng([seed, attempt])
-        buckets: list[list[np.ndarray]] = [[] for _ in range(n_clients)]
-
-        for idx_k in idx_by_class:
-            idx_k = rng.permutation(idx_k)
-            proportions = rng.dirichlet(np.repeat(alpha, n_clients))
-            # Cut points along the shuffled class indices; np.split needs the
-            # interior boundaries only, hence [:-1].
-            cuts = (np.cumsum(proportions) * len(idx_k)).astype(int)[:-1]
-            for client, chunk in enumerate(np.split(idx_k, cuts)):
-                if chunk.size:
-                    buckets[client].append(chunk)
-
-        parts = [
-            np.sort(np.concatenate(b)) if b else np.empty(0, dtype=np.int64)
-            for b in buckets
-        ]
+        parts = _draw_partition(idx_by_class, n_clients, alpha, rng)
         if min(p.size for p in parts) >= min_client_samples:
             _assert_exact_partition(parts, total)
             return parts
@@ -140,6 +125,29 @@ def dirichlet_partition(
         f"client in {max_tries} tries at alpha={alpha}, n_clients={n_clients}. "
         "Raise alpha, lower min_client_samples, or use fewer clients."
     )
+
+
+def _draw_partition(
+    idx_by_class: list[np.ndarray], n_clients: int, alpha: float, rng: np.random.Generator
+) -> list[np.ndarray]:
+    """One Dirichlet draw: every class split across clients, indices sorted per client.
+
+    Per class the generator is advanced in a fixed order (shuffle, then the
+    proportion vector), so a draw is a pure function of `rng`'s state.
+    """
+    buckets: list[list[np.ndarray]] = [[] for _ in range(n_clients)]
+    for idx_k in idx_by_class:
+        idx_k = rng.permutation(idx_k)
+        proportions = rng.dirichlet(np.repeat(alpha, n_clients))
+        # Cut points along the shuffled class indices; np.split needs the
+        # interior boundaries only, hence [:-1].
+        cuts = (np.cumsum(proportions) * len(idx_k)).astype(int)[:-1]
+        for client, chunk in enumerate(np.split(idx_k, cuts)):
+            if chunk.size:
+                buckets[client].append(chunk)
+    return [
+        np.sort(np.concatenate(b)) if b else np.empty(0, dtype=np.int64) for b in buckets
+    ]
 
 
 def _assert_exact_partition(parts: list[np.ndarray], total: int) -> None:

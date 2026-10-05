@@ -230,6 +230,51 @@ def evaluate(
 # ── the loop ──────────────────────────────────────────────────────────────────
 
 
+def _select_participants(
+    rnd: int,
+    cfg: FedConfig,
+    participation: Callable[[int], list[int]] | None,
+    selection_rng: np.random.Generator,
+) -> list[int]:
+    """Sorted client ids that report in round `rnd`.
+
+    An explicit `participation` schedule wins; otherwise every client reports,
+    or a `client_fraction` sample is drawn. `selection_rng` is only advanced on
+    the sampling branch, so a schedule or full participation never perturbs it.
+    """
+    if participation is not None:
+        participants = sorted({int(c) for c in participation(rnd)})
+        if not participants or participants[0] < 0 or participants[-1] >= cfg.n_clients:
+            raise ValueError(f"participation returned {participants} for {cfg.n_clients} clients")
+        return participants
+    if cfg.clients_per_round >= cfg.n_clients:
+        return list(range(cfg.n_clients))
+    return sorted(
+        selection_rng.choice(cfg.n_clients, size=cfg.clients_per_round, replace=False).tolist()
+    )
+
+
+def _client_update(
+    model: nn.Module,
+    global_state: StateDict,
+    shard: tuple[torch.Tensor, torch.Tensor],
+    cid: int,
+    rnd: int,
+    cfg: FedConfig,
+    fault: ShardTransform | None,
+) -> ClientUpdate:
+    """One client's round: apply any fault to its shard, train from the global model."""
+    x, y = shard
+    if fault is not None:
+        x, y = fault(cid, rnd, x, y)
+    local = copy.deepcopy(model)
+    local.load_state_dict(global_state)
+    state, loss = local_train(local, x, y, cfg, seed=_derive_seed(cfg.train_seed, rnd, cid))
+    return ClientUpdate(
+        client_id=cid, round_idx=rnd, n_samples=int(x.shape[0]), train_loss=loss, state=state
+    )
+
+
 def run_federated(
     cfg: FedConfig,
     dataset: Dataset,
@@ -281,38 +326,11 @@ def run_federated(
     for rnd in range(cfg.rounds):
         started = time.perf_counter()
 
-        if participation is not None:
-            participants = sorted({int(c) for c in participation(rnd)})
-            if not participants or participants[0] < 0 or participants[-1] >= cfg.n_clients:
-                raise ValueError(f"participation returned {participants} for {cfg.n_clients} clients")
-        elif cfg.clients_per_round >= cfg.n_clients:
-            participants = list(range(cfg.n_clients))
-        else:
-            participants = sorted(
-                selection_rng.choice(
-                    cfg.n_clients, size=cfg.clients_per_round, replace=False
-                ).tolist()
-            )
-
-        updates: list[ClientUpdate] = []
-        for cid in participants:
-            x, y = shards[cid]
-            if fault is not None:
-                x, y = fault(cid, rnd, x, y)
-            local = copy.deepcopy(model)
-            local.load_state_dict(global_state)
-            state, loss = local_train(
-                local, x, y, cfg, seed=_derive_seed(cfg.train_seed, rnd, cid)
-            )
-            updates.append(
-                ClientUpdate(
-                    client_id=cid,
-                    round_idx=rnd,
-                    n_samples=int(x.shape[0]),
-                    train_loss=loss,
-                    state=state,
-                )
-            )
+        participants = _select_participants(rnd, cfg, participation, selection_rng)
+        updates = [
+            _client_update(model, global_state, shards[cid], cid, rnd, cfg, fault)
+            for cid in participants
+        ]
 
         if update_hook is not None:
             update_hook(updates, rnd)
